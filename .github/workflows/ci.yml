@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # Typecheck, lint, and the Jest suite — the fast feedback loop.
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npx eslint .
+      - run: npx jest --ci
+
+  # The Android app must actually assemble — this is the platform Upstart-style
+  # RN teams expand into, and the build catches native-side breakage that the
+  # JS checks can't.
+  android-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci
+      - name: Assemble debug APK
+        run: cd android && ./gradlew assembleDebug --no-daemon
