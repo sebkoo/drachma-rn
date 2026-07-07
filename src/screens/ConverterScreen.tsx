@@ -1,9 +1,10 @@
 /**
- * The converter — Drachma's core loop, in React Native. Same rules as the
- * native iOS app: live keyless rates, and the data's provenance is always
- * on screen (ECB reference vs community/indicative).
+ * The converter — Drachma's core loop, in React Native. Pure view: all state
+ * and behavior live in the useConverter ViewModel hook. Same rules as the
+ * native iOS app: live keyless rates, provenance always on screen, and
+ * offline staleness said out loud instead of hidden.
  */
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -13,52 +14,14 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
-import {RatesSnapshot, convert, latestRates, sourceLabel} from '../api/rates';
+import {sourceLabel} from '../api/rates';
+import {useConverter} from './useConverter';
 
 const QUICK_PICKS = ['USD', 'EUR', 'KRW', 'JPY', 'GBP', 'VND'] as const;
 
 export default function ConverterScreen(): React.JSX.Element {
   const dark = useColorScheme() === 'dark';
-  const [amountText, setAmountText] = useState('100');
-  const [from, setFrom] = useState('USD');
-  const [to, setTo] = useState('KRW');
-  const [snapshot, setSnapshot] = useState<RatesSnapshot | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setSnapshot(await latestRates(from, to));
-    } catch {
-      setError('Could not load rates — check your connection and retry.');
-    } finally {
-      setLoading(false);
-    }
-  }, [from, to]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  const amount = Number(amountText.replace(',', '.'));
-  const result = useMemo(() => {
-    if (!snapshot || !Number.isFinite(amount)) {
-      return null;
-    }
-    try {
-      return convert(snapshot, amount, from, to);
-    } catch {
-      return null;
-    }
-  }, [snapshot, amount, from, to]);
-
-  const swap = () => {
-    setFrom(to);
-    setTo(from);
-  };
-
+  const vm = useConverter();
   const palette = dark ? darkPalette : lightPalette;
 
   return (
@@ -67,8 +30,8 @@ export default function ConverterScreen(): React.JSX.Element {
 
       <TextInput
         style={[styles.amount, {color: palette.text, borderColor: palette.border}]}
-        value={amountText}
-        onChangeText={setAmountText}
+        value={vm.amountText}
+        onChangeText={vm.setAmountText}
         keyboardType="decimal-pad"
         accessibilityLabel="Amount"
       />
@@ -76,42 +39,53 @@ export default function ConverterScreen(): React.JSX.Element {
       <View style={styles.pairRow}>
         <CurrencyColumn
           label="From"
-          selected={from}
-          onSelect={setFrom}
+          selected={vm.from}
+          onSelect={vm.setFrom}
           palette={palette}
         />
         <Pressable
-          onPress={swap}
+          onPress={vm.swap}
           accessibilityRole="button"
           accessibilityLabel="Swap currencies"
           style={styles.swap}>
           <Text style={[styles.swapGlyph, {color: palette.accent}]}>⇄</Text>
         </Pressable>
-        <CurrencyColumn label="To" selected={to} onSelect={setTo} palette={palette} />
+        <CurrencyColumn
+          label="To"
+          selected={vm.to}
+          onSelect={vm.setTo}
+          palette={palette}
+        />
       </View>
 
       <View style={styles.resultBlock}>
-        {loading && <ActivityIndicator />}
-        {!loading && error && (
+        {vm.loading && <ActivityIndicator />}
+        {!vm.loading && vm.error && (
           <>
-            <Text style={[styles.error, {color: palette.error}]}>{error}</Text>
-            <Pressable onPress={refresh} accessibilityRole="button">
+            <Text style={[styles.error, {color: palette.error}]}>{vm.error}</Text>
+            <Pressable onPress={vm.refresh} accessibilityRole="button">
               <Text style={[styles.retry, {color: palette.accent}]}>Retry</Text>
             </Pressable>
           </>
         )}
-        {!loading && !error && result !== null && snapshot && (
+        {!vm.loading && !vm.error && vm.result !== null && vm.snapshot && (
           <>
             <Text
               style={[styles.result, {color: palette.text}]}
               testID="converted-amount">
-              {result.toLocaleString(undefined, {maximumFractionDigits: 2})} {to}
+              {vm.result.toLocaleString(undefined, {maximumFractionDigits: 2})}{' '}
+              {vm.to}
             </Text>
             {/* The provenance label is not decoration — it is the product's
                 honesty rule. Every rate on screen says where it came from. */}
             <Text style={[styles.provenance, {color: palette.secondary}]}>
-              {sourceLabel(snapshot)}
+              {sourceLabel(vm.snapshot)}
             </Text>
+            {vm.stale && (
+              <Text style={[styles.stale, {color: palette.warning}]}>
+                Offline — showing last good rates
+              </Text>
+            )}
           </>
         )}
       </View>
@@ -137,10 +111,7 @@ function CurrencyColumn(props: {
             onPress={() => onSelect(code)}
             accessibilityRole="button"
             accessibilityState={{selected: active}}
-            style={[
-              styles.pick,
-              active && {backgroundColor: palette.accent},
-            ]}>
+            style={[styles.pick, active && {backgroundColor: palette.accent}]}>
             <Text style={{color: active ? palette.onAccent : palette.text}}>
               {code}
             </Text>
@@ -159,6 +130,7 @@ interface Palette {
   accent: string;
   onAccent: string;
   error: string;
+  warning: string;
 }
 
 const lightPalette: Palette = {
@@ -169,6 +141,7 @@ const lightPalette: Palette = {
   accent: '#1F3A5F',
   onAccent: '#FFFFFF',
   error: '#B91C1C',
+  warning: '#B45309',
 };
 
 const darkPalette: Palette = {
@@ -179,6 +152,7 @@ const darkPalette: Palette = {
   accent: '#8AB4F8',
   onAccent: '#111418',
   error: '#F87171',
+  warning: '#FBBF24',
 };
 
 const styles = StyleSheet.create({
@@ -200,6 +174,7 @@ const styles = StyleSheet.create({
   resultBlock: {marginTop: 32, alignItems: 'center', gap: 8},
   result: {fontSize: 34, fontWeight: '600'},
   provenance: {fontSize: 13},
+  stale: {fontSize: 13, fontWeight: '600'},
   error: {fontSize: 15, textAlign: 'center'},
   retry: {fontSize: 15, fontWeight: '600'},
 });

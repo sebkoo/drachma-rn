@@ -1,6 +1,7 @@
 import React from 'react';
 import { StatusBar, useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { RatesProviderScope } from './src/di/RatesContext';
 import ConverterScreen from './src/screens/ConverterScreen';
 
 function App(): React.JSX.Element {
@@ -9,7 +10,9 @@ function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <ConverterScreen />
+      <RatesProviderScope>
+        <ConverterScreen />
+      </RatesProviderScope>
     </SafeAreaProvider>
   );
 }
