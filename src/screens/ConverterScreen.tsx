@@ -71,13 +71,12 @@ export default function ConverterScreen(props: {
             </Pressable>
           </>
         )}
-        {!vm.loading && !vm.error && vm.result !== null && vm.snapshot && (
+        {!vm.loading && !vm.error && vm.formatted !== null && vm.snapshot && (
           <>
             <Text
               style={[styles.result, {color: palette.text}]}
               testID="converted-amount">
-              {vm.result.toLocaleString(undefined, {maximumFractionDigits: 2})}{' '}
-              {vm.to}
+              {vm.formatted}
             </Text>
             {/* The provenance label is not decoration — it is the product's
                 honesty rule. Every rate on screen says where it came from. */}

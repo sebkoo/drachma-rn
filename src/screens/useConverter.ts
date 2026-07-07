@@ -7,6 +7,7 @@ import {useCallback, useEffect, useMemo, useState} from 'react';
 import {RatesSnapshot, convert} from '../api/rates';
 import {useRatesProvider} from '../di/RatesContext';
 import {ConvertLink} from '../linking/parseLink';
+import {formatCurrency} from '../native/currencyFormatter';
 
 export interface ConverterState {
   amountText: string;
@@ -23,6 +24,8 @@ export interface ConverterState {
   loading: boolean;
   error: string | null;
   result: number | null;
+  /** The result rendered by the native currency formatter (JS fallback in tests/Android). */
+  formatted: string | null;
 }
 
 export function useConverter(link?: ConvertLink | null): ConverterState {
@@ -87,10 +90,29 @@ export function useConverter(link?: ConvertLink | null): ConverterState {
     setTo(from);
   }, [from, to]);
 
+  // Format through the native module; guard against out-of-order resolutions
+  // when the pair changes faster than the bridge round-trips.
+  const [formatted, setFormatted] = useState<string | null>(null);
+  useEffect(() => {
+    if (result === null) {
+      setFormatted(null);
+      return;
+    }
+    let live = true;
+    formatCurrency(result, to).then(text => {
+      if (live) {
+        setFormatted(text);
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [result, to]);
+
   return {
     amountText, setAmountText,
     from, to, setFrom, setTo,
     swap, refresh,
-    snapshot, stale, loading, error, result,
+    snapshot, stale, loading, error, result, formatted,
   };
 }

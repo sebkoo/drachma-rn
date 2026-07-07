@@ -5,7 +5,7 @@
 [![CI](https://github.com/sebkoo/drachma-rn/actions/workflows/ci.yml/badge.svg)](https://github.com/sebkoo/drachma-rn/actions/workflows/ci.yml)
 ![React Native 0.86](https://img.shields.io/badge/React%20Native-0.86%20(New%20Architecture)-61dafb)
 ![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6)
-![Tests](https://img.shields.io/badge/Jest-24%20tests-99424f)
+![Tests](https://img.shields.io/badge/Jest-27%20tests-99424f)
 
 <p align="center">
   <img src="docs/demo.gif" width="300" alt="Drachma RN demo: converting USD to VND with a community provenance label, swapping pairs, and switching to dark mode" />
@@ -39,6 +39,7 @@ The SwiftUI Drachma app runs on three seams. Each has an exact React Native equi
 | `PairRatesProviding` protocol — ViewModels never know Frankfurter exists | `RatesProvider` interface + React Context injection ([`provider.ts`](src/api/provider.ts), [`RatesContext.tsx`](src/di/RatesContext.tsx)) | Swapping/wrapping providers costs one line at the composition root; tests inject fakes through the same seam the app uses |
 | MVVM — `@Observable` ViewModels | **Custom hook = ViewModel**: [`useConverter`](src/screens/useConverter.ts) owns all state and behavior; the screen is a pure view | The converter logic is tested against a fake provider with zero module mocks |
 | Actor-based offline cache, timestamps always visible | [`CachedRatesProvider`](src/api/cachedProvider.ts) decorator + [`SnapshotStore`](src/storage/snapshotStore.ts) seam (AsyncStorage on device, in-memory in tests) | Every success cached; failures serve the last good snapshot **marked stale** — the UI says it out loud |
+| Native platform strengths | **Custom Swift native module**: [`CurrencyFormatter`](ios/DrachmaRN/CurrencyFormatter.swift) exposes Foundation's `NumberFormatter` ([JS wrapper with fallback](src/native/currencyFormatter.ts)) | Locale-correct symbols and per-currency decimal rules (₩, ₫, ¥ take zero decimals) that Hermes's partial Intl can't provide |
 
 ```mermaid
 flowchart LR
@@ -74,7 +75,7 @@ xcrun simctl openurl booted "drachma://convert?from=USD&to=VND&amount=250"
 
 ## Quality
 
-- **24 Jest tests**: conversion math, ECB-vs-community provider routing, HTTP/payload failure paths, the cache decorator's semantics (fresh / stale / rethrow), the ViewModel against fake providers, deep-link parsing, and a full-app render asserting the provenance label.
+- **27 Jest tests**: conversion math, ECB-vs-community provider routing, HTTP/payload failure paths, the cache decorator's semantics (fresh / stale / rethrow), the ViewModel against fake providers, deep-link parsing, currency-formatting fallbacks, and a full-app render asserting the provenance label.
 - **CI on every push**: typecheck (`tsc`), lint (`eslint`), tests (`jest`) — plus a real **Android `assembleDebug`**, because gradle catches native-side breakage the JS loop can't see.
 - Hand-rolled deep-link parsing with a reason: Hermes ships an incomplete WHATWG `URL`, so `new URL()` passes in Jest (Node) and breaks on device. The test suite pins the hand-rolled parser instead.
 
@@ -96,7 +97,7 @@ npm run android                           # Android emulator/device
 - [x] Architecture seams from the native app: provider interface / ViewModel hook / offline last-good cache
 - [x] Deep linking (`drachma://convert`) + URL-driven demo states
 - [ ] CI: iOS simulator build job
-- [ ] Custom native module in Swift (bridging the platform's native strengths)
+- [x] Custom native module in Swift: locale-correct currency formatting via `NumberFormatter` (₩151,445, ₫6,575,053 — zero-decimal rules Hermes's partial Intl can't know), with a JS fallback for Android/Jest
 - [ ] 7-day history chart
 - [ ] Currency search over the full 300+ community set
 
