@@ -31,6 +31,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     return true
   }
+
+  // Registering the drachma:// scheme in Info.plist is only half the wiring:
+  // incoming URLs must be forwarded to RCTLinkingManager or JS never sees the
+  // Linking 'url' event / getInitialURL value.
+  func application(
+    _ app: UIApplication,
+    open url: URL,
+    options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+  ) -> Bool {
+    RCTLinkingManager.application(app, open: url, options: options)
+  }
 }
 
 class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
