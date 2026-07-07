@@ -38,3 +38,23 @@ jobs:
       - run: npm ci
       - name: Assemble debug APK
         run: cd android && ./gradlew assembleDebug --no-daemon
+
+  # The iOS app must also actually build — pods + xcodebuild against the
+  # simulator (no signing) covers the native module and AppDelegate wiring
+  # that jest can't see.
+  ios-build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Install pods
+        run: cd ios && bundle install && bundle exec pod install
+      - name: Build for iOS Simulator
+        run: >
+          xcodebuild -workspace ios/DrachmaRN.xcworkspace -scheme DrachmaRN
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO -quiet build
