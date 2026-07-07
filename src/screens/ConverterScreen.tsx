@@ -15,13 +15,16 @@ import {
   useColorScheme,
 } from 'react-native';
 import {sourceLabel} from '../api/rates';
+import {ConvertLink} from '../linking/parseLink';
 import {useConverter} from './useConverter';
 
 const QUICK_PICKS = ['USD', 'EUR', 'KRW', 'JPY', 'GBP', 'VND'] as const;
 
-export default function ConverterScreen(): React.JSX.Element {
+export default function ConverterScreen(props: {
+  link?: ConvertLink | null;
+}): React.JSX.Element {
   const dark = useColorScheme() === 'dark';
-  const vm = useConverter();
+  const vm = useConverter(props.link);
   const palette = dark ? darkPalette : lightPalette;
 
   return (

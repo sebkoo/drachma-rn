@@ -6,6 +6,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {RatesSnapshot, convert} from '../api/rates';
 import {useRatesProvider} from '../di/RatesContext';
+import {ConvertLink} from '../linking/parseLink';
 
 export interface ConverterState {
   amountText: string;
@@ -24,11 +25,28 @@ export interface ConverterState {
   result: number | null;
 }
 
-export function useConverter(): ConverterState {
+export function useConverter(link?: ConvertLink | null): ConverterState {
   const provider = useRatesProvider();
   const [amountText, setAmountText] = useState('100');
   const [from, setFrom] = useState('USD');
   const [to, setTo] = useState('KRW');
+
+  // Deep links (drachma://convert?from=&to=&amount=) override the pair —
+  // both at launch and while running.
+  useEffect(() => {
+    if (!link) {
+      return;
+    }
+    if (link.from) {
+      setFrom(link.from);
+    }
+    if (link.to) {
+      setTo(link.to);
+    }
+    if (link.amount) {
+      setAmountText(link.amount);
+    }
+  }, [link]);
   const [snapshot, setSnapshot] = useState<RatesSnapshot | null>(null);
   const [stale, setStale] = useState(false);
   const [loading, setLoading] = useState(false);
