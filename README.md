@@ -96,7 +96,7 @@ npm run android                           # Android emulator/device
 - [x] CI: JS checks + Android debug build on every push
 - [x] Architecture seams from the native app: provider interface / ViewModel hook / offline last-good cache
 - [x] Deep linking (`drachma://convert`) + URL-driven demo states
-- [ ] CI: iOS simulator build job
+- [x] CI: iOS simulator build job
 - [x] Custom native module in Swift: locale-correct currency formatting via `NumberFormatter` (₩151,445, ₫6,575,053 — zero-decimal rules Hermes's partial Intl can't know), with a JS fallback for Android/Jest
 - [ ] 7-day history chart
 - [ ] Currency search over the full 300+ community set
