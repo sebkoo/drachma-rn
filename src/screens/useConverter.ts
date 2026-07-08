@@ -8,6 +8,7 @@ import {RatesSnapshot, convert} from '../api/rates';
 import {useRatesProvider} from '../di/RatesContext';
 import {ConvertLink} from '../linking/parseLink';
 import {formatCurrency} from '../native/currencyFormatter';
+import {parseAmount} from './parseAmount';
 
 export interface ConverterState {
   amountText: string;
@@ -86,7 +87,7 @@ export function useConverter(link?: ConvertLink | null): ConverterState {
     refresh();
   }, [refresh]);
 
-  const amount = Number(amountText.replace(',', '.'));
+  const amount = parseAmount(amountText);
   const result = useMemo(() => {
     if (!snapshot || !Number.isFinite(amount)) {
       return null;
