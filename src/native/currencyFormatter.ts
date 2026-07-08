@@ -1,25 +1,20 @@
 /**
- * Locale-correct currency formatting through the custom Swift native module
- * (NumberFormatter knows KRW/JPY/VND take zero decimals and which symbol to
- * use — Hermes's partial Intl doesn't). Falls back to a small JS formatter
- * where the module isn't present: Android (for now) and Jest.
+ * Locale-correct currency formatting through the CurrencyFormatter TurboModule
+ * (NumberFormatter on iOS, java.util.Currency on Android — both know KRW/JPY/
+ * VND take zero decimals and which symbol to use, where Hermes's partial Intl
+ * doesn't). The module is resolved through the codegen spec; where it's absent
+ * — Jest, or any platform before its native side lands — we fall back to a
+ * small JS formatter instead of throwing.
  */
-import {NativeModules} from 'react-native';
-
-interface CurrencyFormatterModule {
-  format(amount: number, currencyCode: string): Promise<string>;
-}
-
-const native: CurrencyFormatterModule | undefined =
-  NativeModules.CurrencyFormatter;
+import CurrencyFormatter from './NativeCurrencyFormatter';
 
 export async function formatCurrency(
   amount: number,
   code: string,
 ): Promise<string> {
-  if (native?.format) {
+  if (CurrencyFormatter) {
     try {
-      return await native.format(amount, code);
+      return await CurrencyFormatter.format(amount, code);
     } catch {
       // fall through to the JS fallback
     }
