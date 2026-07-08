@@ -15,10 +15,9 @@ export class CachedRatesProvider implements RatesProvider {
 
   async latest(base: string, quote: string): Promise<RatesResult> {
     const key = `${base.toUpperCase()}-${quote.toUpperCase()}`;
+    let result: RatesResult;
     try {
-      const result = await this.wrapped.latest(base, quote);
-      await this.store.save(key, result.snapshot);
-      return result;
+      result = await this.wrapped.latest(base, quote);
     } catch (error) {
       const lastGood = await this.store.load(key);
       if (lastGood) {
@@ -26,5 +25,12 @@ export class CachedRatesProvider implements RatesProvider {
       }
       throw error;
     }
+    try {
+      await this.store.save(key, result.snapshot);
+    } catch {
+      // Persistence is best-effort: a cache-write failure must never
+      // downgrade a fetch that already succeeded — the snapshot is in hand.
+    }
+    return result;
   }
 }

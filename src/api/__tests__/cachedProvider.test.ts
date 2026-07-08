@@ -54,4 +54,17 @@ describe('CachedRatesProvider — the offline last-good decorator', () => {
 
     await expect(provider.latest('USD', 'KRW')).rejects.toThrow('network down');
   });
+
+  it('a cache-write failure never downgrades a successful fetch', async () => {
+    const brokenStore = new InMemorySnapshotStore();
+    brokenStore.save = async () => {
+      throw new Error('disk full');
+    };
+    const provider = new CachedRatesProvider(new FlakyProvider(), brokenStore);
+
+    const result = await provider.latest('USD', 'KRW');
+
+    expect(result.stale).toBe(false);
+    expect(result.snapshot).toEqual(snapshot);
+  });
 });
