@@ -20,8 +20,8 @@ jobs:
       - run: npx eslint .
       - run: npx jest --ci
 
-  # The Android app must actually assemble — this is the platform Upstart-style
-  # RN teams expand into, and the build catches native-side breakage that the
+  # The Android app must actually assemble — it's the second platform this
+  # codebase promises, and the build catches native-side breakage that the
   # JS checks can't.
   android-build:
     runs-on: ubuntu-latest
