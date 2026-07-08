@@ -3,7 +3,7 @@
  * React Native: all state and behavior live here (testable with a fake
  * provider); the screen renders it and nothing else.
  */
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {RatesSnapshot, convert} from '../api/rates';
 import {useRatesProvider} from '../di/RatesContext';
 import {ConvertLink} from '../linking/parseLink';
@@ -55,17 +55,30 @@ export function useConverter(link?: ConvertLink | null): ConverterState {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Last-request-wins: the pair can change faster than the network answers,
+  // and an older response resolving late must never overwrite a newer one.
+  const requestSeq = useRef(0);
+
   const refresh = useCallback(async () => {
+    const seq = ++requestSeq.current;
     setLoading(true);
     setError(null);
     try {
       const outcome = await provider.latest(from, to);
+      if (seq !== requestSeq.current) {
+        return; // a newer request owns the state now
+      }
       setSnapshot(outcome.snapshot);
       setStale(outcome.stale);
     } catch {
+      if (seq !== requestSeq.current) {
+        return;
+      }
       setError('Could not load rates — check your connection and retry.');
     } finally {
-      setLoading(false);
+      if (seq === requestSeq.current) {
+        setLoading(false);
+      }
     }
   }, [provider, from, to]);
 

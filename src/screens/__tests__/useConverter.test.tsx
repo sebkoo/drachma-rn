@@ -77,4 +77,58 @@ describe('useConverter (the ViewModel hook)', () => {
     expect(captured.from).toBe('KRW');
     expect(captured.to).toBe('USD');
   });
+
+  it('drops a stale response that resolves after a newer one (race guard)', async () => {
+    const newer: RatesSnapshot = {...snapshot, date: '2026-07-07', rates: {KRW: 2000}};
+    const provider = new DeferredProvider();
+    await renderWith(provider);
+
+    // Second refresh starts while the first is still in flight.
+    await ReactTestRenderer.act(async () => {
+      captured.refresh();
+    });
+    // The newer request resolves first…
+    await ReactTestRenderer.act(async () => {
+      provider.resolvers[1]({snapshot: newer, stale: false});
+    });
+    // …then the older one lands late and must be ignored.
+    await ReactTestRenderer.act(async () => {
+      provider.resolvers[0]({snapshot, stale: true});
+    });
+
+    expect(captured.snapshot?.rates.KRW).toBe(2000);
+    expect(captured.stale).toBe(false);
+    expect(captured.loading).toBe(false);
+  });
+
+  it('ignores a late failure from a superseded request', async () => {
+    const provider = new DeferredProvider();
+    await renderWith(provider);
+
+    await ReactTestRenderer.act(async () => {
+      captured.refresh();
+    });
+    await ReactTestRenderer.act(async () => {
+      provider.resolvers[1]({snapshot, stale: false});
+    });
+    await ReactTestRenderer.act(async () => {
+      provider.rejectors[0](new Error('slow request finally died'));
+    });
+
+    expect(captured.error).toBeNull();
+    expect(captured.result).toBeCloseTo(139120);
+  });
 });
+
+/** A provider whose promises resolve only when the test says so. */
+class DeferredProvider implements RatesProvider {
+  resolvers: Array<(result: RatesResult) => void> = [];
+  rejectors: Array<(error: unknown) => void> = [];
+
+  latest(): Promise<RatesResult> {
+    return new Promise((resolve, reject) => {
+      this.resolvers.push(resolve);
+      this.rejectors.push(reject);
+    });
+  }
+}
