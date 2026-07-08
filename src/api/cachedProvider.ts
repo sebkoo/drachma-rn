@@ -5,6 +5,7 @@
  * `stale` so the UI can say so honestly. No silent staleness.
  */
 import {RatesProvider, RatesResult} from './provider';
+import {RatesSnapshot} from './rates';
 import {SnapshotStore} from '../storage/snapshotStore';
 
 export class CachedRatesProvider implements RatesProvider {
@@ -19,7 +20,13 @@ export class CachedRatesProvider implements RatesProvider {
     try {
       result = await this.wrapped.latest(base, quote);
     } catch (error) {
-      const lastGood = await this.store.load(key);
+      let lastGood: RatesSnapshot | null = null;
+      try {
+        lastGood = await this.store.load(key);
+      } catch {
+        // Mirror of the save() rule: a broken cache read must not replace
+        // the real failure — the network error is the truth worth surfacing.
+      }
       if (lastGood) {
         return {snapshot: lastGood, stale: true};
       }

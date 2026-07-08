@@ -55,6 +55,19 @@ describe('CachedRatesProvider — the offline last-good decorator', () => {
     await expect(provider.latest('USD', 'KRW')).rejects.toThrow('network down');
   });
 
+  it('a broken cache read never replaces the real network error', async () => {
+    const brokenStore = new InMemorySnapshotStore();
+    brokenStore.load = async () => {
+      throw new Error('storage locked');
+    };
+    const flaky = new FlakyProvider();
+    flaky.failing = true;
+    const provider = new CachedRatesProvider(flaky, brokenStore);
+
+    // The original failure is the truth worth surfacing — not the cache's.
+    await expect(provider.latest('USD', 'KRW')).rejects.toThrow('network down');
+  });
+
   it('a cache-write failure never downgrades a successful fetch', async () => {
     const brokenStore = new InMemorySnapshotStore();
     brokenStore.save = async () => {
