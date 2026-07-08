@@ -4,7 +4,7 @@
  * provider); the screen renders it and nothing else.
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {RatesSnapshot, convert} from '../api/rates';
+import {RatesError, RatesSnapshot, convert} from '../api/rates';
 import {useRatesProvider} from '../di/RatesContext';
 import {ConvertLink} from '../linking/parseLink';
 import {formatCurrency} from '../native/currencyFormatter';
@@ -27,6 +27,27 @@ export interface ConverterState {
   result: number | null;
   /** The result rendered by the native currency formatter (JS fallback in tests/Android). */
   formatted: string | null;
+}
+
+/**
+ * Failures get told apart, not flattened: a timeout, a dead connection, and a
+ * broken payload need different user reactions (wait / fix network / retry).
+ */
+function messageFor(error: unknown): string {
+  if (error instanceof RatesError) {
+    switch (error.kind) {
+      case 'timeout':
+        return 'The rate service is not answering — retry in a moment.';
+      case 'network':
+        return 'No connection — check your network and retry.';
+      case 'badStatus':
+        return 'The rate service is having trouble — retry in a moment.';
+      case 'unknownCurrency':
+      case 'malformedPayload':
+        return 'Rates for this pair are unavailable right now.';
+    }
+  }
+  return 'Could not load rates — check your connection and retry.';
 }
 
 export function useConverter(link?: ConvertLink | null): ConverterState {
@@ -71,11 +92,11 @@ export function useConverter(link?: ConvertLink | null): ConverterState {
       }
       setSnapshot(outcome.snapshot);
       setStale(outcome.stale);
-    } catch {
+    } catch (caught) {
       if (seq !== requestSeq.current) {
         return;
       }
-      setError('Could not load rates — check your connection and retry.');
+      setError(messageFor(caught));
     } finally {
       if (seq === requestSeq.current) {
         setLoading(false);

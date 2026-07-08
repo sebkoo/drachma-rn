@@ -22,6 +22,9 @@ function jsonResponse(body: unknown, status = 200): Response {
   } as Response;
 }
 
+/** Retries stay on, but nobody sleeps in a unit test. */
+const instantPolicy = {sleep: async () => {}};
+
 describe('convert', () => {
   it('multiplies by the snapshot rate', () => {
     expect(convert(ecbSnapshot, 100, 'USD', 'EUR')).toBeCloseTo(87.6);
@@ -65,12 +68,70 @@ describe('latestRates routing', () => {
     expect(snapshot.rates.VND).toBe(26120);
   });
 
-  it('surfaces HTTP failures as RatesError', async () => {
+  it('surfaces HTTP failures as RatesError after exhausting retries', async () => {
     const fetcher = jest.fn(async () => jsonResponse({}, 503));
 
     await expect(
-      latestRates('USD', 'EUR', fetcher as typeof fetch),
+      latestRates('USD', 'EUR', fetcher as typeof fetch, instantPolicy),
     ).rejects.toThrow(RatesError);
+    // 503 is transient: 1 attempt + 2 retries.
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it('recovers when a transient failure clears mid-retry', async () => {
+    const fetcher = jest
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({}, 503))
+      .mockResolvedValueOnce(
+        jsonResponse({base: 'USD', date: '2026-07-06', rates: {EUR: 0.876}}),
+      );
+
+    const snapshot = await latestRates(
+      'USD',
+      'EUR',
+      fetcher as typeof fetch,
+      instantPolicy,
+    );
+
+    expect(snapshot.rates.EUR).toBeCloseTo(0.876);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry terminal statuses like 404', async () => {
+    const fetcher = jest.fn(async () => jsonResponse({}, 404));
+
+    await expect(
+      latestRates('USD', 'EUR', fetcher as typeof fetch, instantPolicy),
+    ).rejects.toThrow(/HTTP 404/);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps a dead connection to a retryable network error', async () => {
+    const fetcher = jest.fn(async () => {
+      throw new TypeError('Network request failed');
+    });
+
+    const failure = latestRates('USD', 'EUR', fetcher as typeof fetch, instantPolicy);
+    await expect(failure).rejects.toMatchObject({kind: 'network'});
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it('turns a hung request into a timeout error', async () => {
+    const fetcher = jest.fn(
+      (_url: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('Aborted'), {name: 'AbortError'})),
+          );
+        }),
+    );
+
+    const failure = latestRates('USD', 'EUR', fetcher as typeof fetch, {
+      ...instantPolicy,
+      timeoutMs: 5,
+      retries: 0,
+    });
+    await expect(failure).rejects.toMatchObject({kind: 'timeout'});
   });
 
   it('rejects a malformed Frankfurter payload', async () => {
