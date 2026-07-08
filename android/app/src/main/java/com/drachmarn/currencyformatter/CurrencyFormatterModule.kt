@@ -1,6 +1,5 @@
 package com.drachmarn.currencyformatter
 
-import com.facebook.fbreact.specs.NativeCurrencyFormatterSpec
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.module.annotations.ReactModule
@@ -18,6 +17,8 @@ import java.util.Locale
  * VND come out with zero decimals and the right symbol — the same locale
  * correctness Foundation's NumberFormatter gives iOS.
  */
+// NativeCurrencyFormatterSpec is codegen-generated into this package
+// (codegenConfig.android.javaPackageName), so it needs no import.
 @ReactModule(name = CurrencyFormatterModule.NAME)
 class CurrencyFormatterModule(context: ReactApplicationContext) :
   NativeCurrencyFormatterSpec(context) {
