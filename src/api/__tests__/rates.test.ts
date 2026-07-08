@@ -3,6 +3,7 @@ import {
   RatesError,
   RatesSnapshot,
   convert,
+  isTransient,
   latestRates,
   sourceLabel,
 } from '../rates';
@@ -116,6 +117,33 @@ describe('latestRates routing', () => {
     expect(fetcher).toHaveBeenCalledTimes(3);
   });
 
+  it('maps an unparsable 200 body into the taxonomy — nothing escapes it', async () => {
+    const fetcher = jest.fn(async () => {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => {
+          throw new SyntaxError('Unexpected token < in JSON');
+        },
+      } as unknown as Response;
+    });
+
+    const failure = latestRates('USD', 'EUR', fetcher as typeof fetch, instantPolicy);
+    await expect(failure).rejects.toMatchObject({kind: 'malformedPayload'});
+    expect(fetcher).toHaveBeenCalledTimes(1); // terminal: no retry
+  });
+
+  it('clamps a nonsense retry policy instead of throwing undefined', async () => {
+    const fetcher = jest.fn(async () => jsonResponse({}, 503));
+
+    const failure = latestRates('USD', 'EUR', fetcher as typeof fetch, {
+      ...instantPolicy,
+      retries: -1,
+    });
+    await expect(failure).rejects.toMatchObject({kind: 'badStatus'});
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it('turns a hung request into a timeout error', async () => {
     const fetcher = jest.fn(
       (_url: RequestInfo | URL, init?: RequestInit) =>
@@ -140,6 +168,21 @@ describe('latestRates routing', () => {
     await expect(
       latestRates('USD', 'EUR', fetcher as typeof fetch),
     ).rejects.toThrow(RatesError);
+  });
+});
+
+describe('isTransient — what deserves a retry', () => {
+  it.each([
+    [new RatesError('timeout', 't'), true],
+    [new RatesError('network', 'n'), true],
+    [new RatesError('badStatus', 's', 503), true],
+    [new RatesError('badStatus', 's', 429), true],
+    [new RatesError('badStatus', 's', 404), false],
+    [new RatesError('malformedPayload', 'm'), false],
+    [new RatesError('unknownCurrency', 'u'), false],
+    [new Error('plain'), false],
+  ])('%s → %s', (error, expected) => {
+    expect(isTransient(error)).toBe(expected);
   });
 });
 

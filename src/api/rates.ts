@@ -91,7 +91,17 @@ export async function latestRates(
   fetcher: Fetcher = fetch,
   policy?: Partial<RequestPolicy>,
 ): Promise<RatesSnapshot> {
-  const effective: RequestPolicy = {...DEFAULT_POLICY, ...policy};
+  // Field-wise merge: an explicitly-undefined field (a config value that
+  // happens to be unset) must fall back, not poison the policy.
+  const requestedRetries = policy?.retries;
+  const effective: RequestPolicy = {
+    timeoutMs: policy?.timeoutMs ?? DEFAULT_POLICY.timeoutMs,
+    retries: Number.isFinite(requestedRetries)
+      ? Math.max(0, requestedRetries as number)
+      : DEFAULT_POLICY.retries,
+    backoffMs: policy?.backoffMs ?? DEFAULT_POLICY.backoffMs,
+    sleep: policy?.sleep ?? DEFAULT_POLICY.sleep,
+  };
   const from = base.toUpperCase();
   const to = quote.toUpperCase();
   if (ECB_CURRENCIES.has(from) && ECB_CURRENCIES.has(to)) {
@@ -196,7 +206,7 @@ async function frankfurterLatest(
     fetcher,
     policy,
   );
-  const payload = (await response.json()) as {
+  const payload = (await readJson(response, 'Frankfurter')) as {
     base?: string;
     date?: string;
     rates?: Record<string, number>;
@@ -221,7 +231,7 @@ async function communityLatest(
   );
   // currency-api keys the rates object by the base code itself:
   // {"date": "...", "usd": {"eur": 0.87, ...}}
-  const payload = (await response.json()) as Record<string, unknown>;
+  const payload = (await readJson(response, 'currency-api')) as Record<string, unknown>;
   const date = payload.date;
   const raw = payload[code];
   if (typeof date !== 'string' || typeof raw !== 'object' || raw === null) {
@@ -234,6 +244,18 @@ async function communityLatest(
     }
   }
   return {base: base.toUpperCase(), date, rates, source: 'community'};
+}
+
+/**
+ * A 200 with an unparsable body (captive-portal HTML, truncated CDN payload)
+ * is still a malformed payload — nothing escapes the taxonomy.
+ */
+async function readJson(response: Response, label: string): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    throw new RatesError('malformedPayload', `${label} returned invalid JSON`);
+  }
 }
 
 /** The user-facing provenance label — the honesty rule as a function. */
