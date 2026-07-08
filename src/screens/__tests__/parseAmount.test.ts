@@ -11,6 +11,10 @@ describe('parseAmount — separator-honest amount parsing', () => {
     ['0,99', 0.99],
     ['1 000', 1000], // space grouping
     ['1 234,56', 1234.56], // space grouping + decimal comma
+    ['1.234,56', 1234.56], // European full style: dot grouping, comma decimal
+    ['1.234', 1.234], // dot only = plain decimal, deliberately not a thousand
+    ['-1,234.56', -1234.56],
+    ['-1,234', -1234],
   ])('parses %s as %d', (text, expected) => {
     expect(parseAmount(text)).toBeCloseTo(expected);
   });

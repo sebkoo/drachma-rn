@@ -1,28 +1,39 @@
 /**
- * Parses user-typed amounts without guessing wrong on separators.
- * The old `replace(',', '.')` treated the FIRST comma as a decimal point,
- * so "1,234.56" became "1.234.56" → NaN. Rules, in order:
+ * Parses user-typed amounts with stated, testable separator rules — because
+ * when the number is money, a wrong parse is worse than no parse.
  *
- *   "1,234.56" (both separators)   → comma is grouping   → 1234.56
- *   "1,234" / "12,345,678" (3-digit groups) → grouping   → 1234 / 12345678
- *   "12,5" (comma, non-group shape) → decimal comma      → 12.5
- *   "1 000" (spaces)                → grouping           → 1000
+ *   Both separators present → the LAST one is the decimal mark:
+ *     "1,234.56" → 1234.56 · "1.234,56" → 1234.56
+ *   Comma only → 3-digit groups are grouping, anything else is a decimal comma:
+ *     "1,234" → 1234 · "12,5" → 12.5
+ *   Dot only → a plain decimal (the decimal-pad convention):
+ *     "1.234" → 1.234 — deliberately NOT read as a thousand
+ *   Spaces are grouping: "1 234,56" → 1234.56
  *
- * Anything else falls through to Number() and may be NaN — the caller
- * already treats NaN as "no result", never as zero.
+ * Everything ambiguous or malformed returns NaN — the caller treats NaN as
+ * "no result", never as zero and never as a guess.
  */
-const GROUPED_THOUSANDS = /^\d{1,3}(,\d{3})+(\.\d+)?$/;
+const GROUPED_BY_COMMAS = /^-?\d{1,3}(,\d{3})+$/;
 
 export function parseAmount(text: string): number {
   const trimmed = text.replace(/\s+/g, '');
   if (trimmed === '') {
     return NaN;
   }
-  if (GROUPED_THOUSANDS.test(trimmed)) {
-    return Number(trimmed.replace(/,/g, ''));
+  const lastComma = trimmed.lastIndexOf(',');
+  const lastDot = trimmed.lastIndexOf('.');
+  let normalized: string;
+  if (lastComma >= 0 && lastDot >= 0) {
+    normalized =
+      lastDot > lastComma
+        ? trimmed.replace(/,/g, '') // "1,234.56"
+        : trimmed.replace(/\./g, '').replace(',', '.'); // "1.234,56"
+  } else if (lastComma >= 0) {
+    normalized = GROUPED_BY_COMMAS.test(trimmed)
+      ? trimmed.replace(/,/g, '') // "1,234" / "-12,345,678"
+      : trimmed.replace(/,/g, '.'); // "12,5"
+  } else {
+    normalized = trimmed;
   }
-  if (trimmed.includes(',') && !trimmed.includes('.')) {
-    return Number(trimmed.replace(/,/g, '.'));
-  }
-  return Number(trimmed);
+  return Number(normalized);
 }
