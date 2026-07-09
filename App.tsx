@@ -23,13 +23,10 @@ import {AlertsScope} from './src/alerts/AlertsContext';
 import {startupTrace} from './src/perf/startupTrace';
 import {ConvertLink, parseConvertLink} from './src/linking/parseLink';
 import {LinkScope} from './src/linking/LinkContext';
+import type {RootStackParamList} from './src/navigation/routes';
 import ConverterScreen from './src/screens/ConverterScreen';
 import AlertsScreen from './src/screens/AlertsScreen';
-
-export type RootStackParamList = {
-  Converter: undefined;
-  Alerts: undefined;
-};
+import AboutRatesScreen from './src/screens/AboutRatesScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -58,6 +55,7 @@ const linking: LinkingOptions<RootStackParamList> = {
     screens: {
       Converter: 'convert',
       Alerts: 'alerts',
+      AboutRates: 'about',
     },
   },
 };
@@ -102,7 +100,13 @@ function App(): React.JSX.Element {
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <RatesProviderScope provider={provider}>
         <AlertsScope>
-          <LinkScope link={link}>
+          <LinkScope
+            link={link}
+            onConvert={(from, to) =>
+              // Merge, don't replace: a bridge tap changes the pair but must
+              // keep any active demo/provider selection from the deep link.
+              setLink(prev => ({...prev, from, to}))
+            }>
             <NavigationContainer linking={linking}>
               <Stack.Navigator>
                 <Stack.Screen
@@ -117,6 +121,11 @@ function App(): React.JSX.Element {
                   name="Alerts"
                   component={AlertsScreen}
                   options={{title: 'Rate alerts'}}
+                />
+                <Stack.Screen
+                  name="AboutRates"
+                  component={AboutRatesScreen}
+                  options={{title: 'About these rates'}}
                 />
               </Stack.Navigator>
             </NavigationContainer>

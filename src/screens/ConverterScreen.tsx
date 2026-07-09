@@ -14,9 +14,12 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
+import {useNavigation} from '@react-navigation/native';
+import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {sourceLabel} from '../api/rates';
 import {ConvertLink} from '../linking/parseLink';
 import {useConvertLink} from '../linking/LinkContext';
+import type {RootStackParamList} from '../navigation/routes';
 import {startupTrace} from '../perf/startupTrace';
 import {useConverter} from './useConverter';
 
@@ -26,6 +29,8 @@ export default function ConverterScreen(props: {
   link?: ConvertLink | null;
 }): React.JSX.Element {
   const dark = useColorScheme() === 'dark';
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   // Prop wins for direct renders/tests; otherwise take the link from context.
   const contextLink = useConvertLink();
   const vm = useConverter(props.link ?? contextLink);
@@ -100,6 +105,16 @@ export default function ConverterScreen(props: {
           </>
         )}
       </View>
+
+      {/* Always reachable — a user most wants "where do these rates come from"
+          exactly when the screen is erroring or still loading. */}
+      <Pressable
+        onPress={() => navigation.navigate('AboutRates')}
+        accessibilityRole="button">
+        <Text style={[styles.about, {color: palette.accent}]}>
+          About these rates ›
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -185,6 +200,7 @@ const styles = StyleSheet.create({
   result: {fontSize: 34, fontWeight: '600'},
   provenance: {fontSize: 13},
   stale: {fontSize: 13, fontWeight: '600'},
+  about: {fontSize: 13, marginTop: 8},
   error: {fontSize: 15, textAlign: 'center'},
   retry: {fontSize: 15, fontWeight: '600'},
 });
