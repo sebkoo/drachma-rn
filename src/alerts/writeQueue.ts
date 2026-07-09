@@ -33,6 +33,9 @@ export class WriteQueue {
   private confirmed: Alert[] = [];
   private flushing = false;
   private flushAgain = false;
+  /** Cached optimistic view — a stable reference between changes, so
+   *  useSyncExternalStore can read it directly without allocating per render. */
+  private view: ProjectedAlert[] = [];
   private readonly listeners = new Set<() => void>();
 
   private readonly retries: number;
@@ -89,9 +92,9 @@ export class WriteQueue {
     return this.confirmed;
   }
 
-  /** The optimistic view the UI renders. */
+  /** The optimistic view the UI renders — recomputed only on change (emit). */
   projected(): ProjectedAlert[] {
-    return projectAlerts(this.confirmed, this.ops);
+    return this.view;
   }
 
   /** Queue a new alert. Returns immediately; the caller flushes when online. */
@@ -199,6 +202,7 @@ export class WriteQueue {
   }
 
   private emit(): void {
+    this.view = projectAlerts(this.confirmed, this.ops);
     for (const listener of this.listeners) {
       listener();
     }

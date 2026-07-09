@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import {sourceLabel} from '../api/rates';
 import {ConvertLink} from '../linking/parseLink';
+import {useConvertLink} from '../linking/LinkContext';
 import {useConverter} from './useConverter';
 
 const QUICK_PICKS = ['USD', 'EUR', 'KRW', 'JPY', 'GBP', 'VND'] as const;
@@ -24,13 +25,13 @@ export default function ConverterScreen(props: {
   link?: ConvertLink | null;
 }): React.JSX.Element {
   const dark = useColorScheme() === 'dark';
-  const vm = useConverter(props.link);
+  // Prop wins for direct renders/tests; otherwise take the link from context.
+  const contextLink = useConvertLink();
+  const vm = useConverter(props.link ?? contextLink);
   const palette = dark ? darkPalette : lightPalette;
 
   return (
     <View style={[styles.screen, {backgroundColor: palette.background}]}>
-      <Text style={[styles.title, {color: palette.text}]}>Drachma</Text>
-
       <TextInput
         style={[styles.amount, {color: palette.text, borderColor: palette.border}]}
         value={vm.amountText}
@@ -158,8 +159,7 @@ const darkPalette: Palette = {
 };
 
 const styles = StyleSheet.create({
-  screen: {flex: 1, padding: 24, paddingTop: 72},
-  title: {fontSize: 28, fontWeight: '700', marginBottom: 24},
+  screen: {flex: 1, padding: 24, paddingTop: 24},
   amount: {
     borderWidth: 1,
     borderRadius: 12,

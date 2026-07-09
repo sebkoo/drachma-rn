@@ -1,10 +1,65 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Linking, StatusBar, useColorScheme } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { RatesProviderScope } from './src/di/RatesContext';
-import { errorDemoProvider, offlineDemoProvider } from './src/di/demoProviders';
-import { ConvertLink, parseConvertLink } from './src/linking/parseLink';
+import React, {useEffect, useMemo, useState} from 'react';
+import {
+  Linking,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  useColorScheme,
+} from 'react-native';
+import {SafeAreaProvider} from 'react-native-safe-area-context';
+import {
+  NavigationContainer,
+  LinkingOptions,
+  useNavigation,
+} from '@react-navigation/native';
+import {
+  createNativeStackNavigator,
+  NativeStackNavigationProp,
+} from '@react-navigation/native-stack';
+import {RatesProviderScope} from './src/di/RatesContext';
+import {errorDemoProvider, offlineDemoProvider} from './src/di/demoProviders';
+import {AlertsScope} from './src/alerts/AlertsContext';
+import {ConvertLink, parseConvertLink} from './src/linking/parseLink';
+import {LinkScope} from './src/linking/LinkContext';
 import ConverterScreen from './src/screens/ConverterScreen';
+import AlertsScreen from './src/screens/AlertsScreen';
+
+export type RootStackParamList = {
+  Converter: undefined;
+  Alerts: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+/** Header button to the alerts screen — a stable component (not defined during
+ *  render) so react-navigation doesn't remount it each time. */
+function AlertsHeaderButton(): React.JSX.Element {
+  const navigation =
+    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const tint = useColorScheme() === 'dark' ? '#8AB4F8' : '#1F3A5F';
+  return (
+    <Pressable
+      onPress={() => navigation.navigate('Alerts')}
+      accessibilityRole="button">
+      <Text style={[styles.headerLink, {color: tint}]}>Alerts</Text>
+    </Pressable>
+  );
+}
+
+// Typed routes replace the hand-drilled screen switch: drachma://convert opens
+// the converter, drachma://alerts opens alerts. The converter's from/to/amount
+// and the ?demo= provider swap still flow through parseConvertLink below, since
+// they change the composition root, not just the route.
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: ['drachma://'],
+  config: {
+    screens: {
+      Converter: 'convert',
+      Alerts: 'alerts',
+    },
+  },
+};
 
 function App(): React.JSX.Element | null {
   const isDarkMode = useColorScheme() === 'dark';
@@ -48,10 +103,34 @@ function App(): React.JSX.Element | null {
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <RatesProviderScope provider={provider}>
-        <ConverterScreen link={link} />
+        <AlertsScope>
+          <LinkScope link={link}>
+            <NavigationContainer linking={linking}>
+              <Stack.Navigator>
+                <Stack.Screen
+                  name="Converter"
+                  component={ConverterScreen}
+                  options={{
+                    title: 'Drachma',
+                    headerRight: AlertsHeaderButton,
+                  }}
+                />
+                <Stack.Screen
+                  name="Alerts"
+                  component={AlertsScreen}
+                  options={{title: 'Rate alerts'}}
+                />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </LinkScope>
+        </AlertsScope>
       </RatesProviderScope>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  headerLink: {fontSize: 16},
+});
 
 export default App;
