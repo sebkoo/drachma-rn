@@ -75,9 +75,13 @@ xcrun simctl openurl booted "drachma://convert?from=USD&to=VND&amount=250"
 
 ## Quality
 
-- **27 Jest tests**: conversion math, ECB-vs-community provider routing, HTTP/payload failure paths, the cache decorator's semantics (fresh / stale / rethrow), the ViewModel against fake providers, deep-link parsing, currency-formatting fallbacks, and a full-app render asserting the provenance label.
-- **CI on every push**: typecheck (`tsc`), lint (`eslint`), tests (`jest`) — plus a real **Android `assembleDebug`**, because gradle catches native-side breakage the JS loop can't see.
+- **91 Jest tests**: conversion math, ECB-vs-community provider routing, HTTP/payload failure paths, the cache decorator's semantics (fresh / stale / rethrow), the ViewModel against fake providers, deep-link parsing, currency-formatting fallbacks, a full-app render asserting the provenance label, the offline write-queue engine (idempotency, restart survival, optimistic add/delete), and cold-start timing math.
+- **CI on every push**: typecheck (`tsc`), lint (`eslint`), tests (`jest`) — plus a real **iOS simulator build** and **Android `assembleDebug`**, because native builds catch breakage the JS loop can't see.
 - Hand-rolled deep-link parsing with a reason: Hermes ships an incomplete WHATWG `URL`, so `new URL()` passes in Jest (Node) and breaks on device. The test suite pins the hand-rolled parser instead.
+
+### Startup performance
+
+Upstart's native-vs-webview reasoning is a performance argument, so this app measures before it optimizes. [`startupTrace`](src/perf/startupTrace.ts) marks the JS-visible launch path — bundle eval → first render → first meaningful content (rates on screen, the TTI signal) — and logs both durations in dev builds. The launch also renders immediately instead of holding a blank frame until the initial URL resolves (the old `if (!ready) return null`); a deep link folds in a beat later rather than delaying first paint. A native pre-JS mark is the documented next step; no number is claimed here until it is measured on device.
 
 ## Run it
 
@@ -98,6 +102,7 @@ npm run android                           # Android emulator/device
 - [x] Deep linking (`drachma://convert`) + URL-driven demo states
 - [x] CI: iOS simulator build job
 - [x] Custom native module in Swift: locale-correct currency formatting via `NumberFormatter` (₩151,445, ₫6,575,053 — zero-decimal rules Hermes's partial Intl can't know), with a JS fallback for Android/Jest
+- [x] Startup instrumentation (cold-start marks) + immediate first paint
 - [ ] 7-day history chart
 - [ ] Currency search over the full 300+ community set
 

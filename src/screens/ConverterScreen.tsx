@@ -4,7 +4,7 @@
  * native iOS app: live keyless rates, provenance always on screen, and
  * offline staleness said out loud instead of hidden.
  */
-import React from 'react';
+import React, {useEffect} from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -17,6 +17,7 @@ import {
 import {sourceLabel} from '../api/rates';
 import {ConvertLink} from '../linking/parseLink';
 import {useConvertLink} from '../linking/LinkContext';
+import {startupTrace} from '../perf/startupTrace';
 import {useConverter} from './useConverter';
 
 const QUICK_PICKS = ['USD', 'EUR', 'KRW', 'JPY', 'GBP', 'VND'] as const;
@@ -29,6 +30,13 @@ export default function ConverterScreen(props: {
   const contextLink = useConvertLink();
   const vm = useConverter(props.link ?? contextLink);
   const palette = dark ? darkPalette : lightPalette;
+
+  // Time-to-interactive: the first frame with a real converted amount on screen.
+  useEffect(() => {
+    if (vm.formatted !== null) {
+      startupTrace.markContentReady();
+    }
+  }, [vm.formatted]);
 
   return (
     <View style={[styles.screen, {backgroundColor: palette.background}]}>

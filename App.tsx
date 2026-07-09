@@ -20,6 +20,7 @@ import {
 import {RatesProviderScope} from './src/di/RatesContext';
 import {errorDemoProvider, offlineDemoProvider} from './src/di/demoProviders';
 import {AlertsScope} from './src/alerts/AlertsContext';
+import {startupTrace} from './src/perf/startupTrace';
 import {ConvertLink, parseConvertLink} from './src/linking/parseLink';
 import {LinkScope} from './src/linking/LinkContext';
 import ConverterScreen from './src/screens/ConverterScreen';
@@ -61,19 +62,20 @@ const linking: LinkingOptions<RootStackParamList> = {
   },
 };
 
-function App(): React.JSX.Element | null {
+function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === 'dark';
   const [link, setLink] = useState<ConvertLink | null>(null);
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    Linking.getInitialURL()
-      .then(url => {
-        if (url) {
-          setLink(parseConvertLink(url));
-        }
-      })
-      .finally(() => setReady(true));
+    startupTrace.markFirstRender();
+    // Render immediately and fold the initial URL in when it resolves — the
+    // old `if (!ready) return null` traded a blank launch frame for the rare
+    // case of briefly showing defaults before a ?demo= link applies.
+    Linking.getInitialURL().then(url => {
+      if (url) {
+        setLink(parseConvertLink(url));
+      }
+    });
     const subscription = Linking.addEventListener('url', event => {
       const parsed = parseConvertLink(event.url);
       if (parsed) {
@@ -94,10 +96,6 @@ function App(): React.JSX.Element | null {
     }
     return undefined;
   }, [link?.demo]);
-
-  if (!ready) {
-    return null; // don't flash defaults before the initial URL resolves
-  }
 
   return (
     <SafeAreaProvider>
